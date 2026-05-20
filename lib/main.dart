@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'theme.dart';
 
 import 'screens/home_screen.dart';
 import 'screens/vets_screen.dart';
@@ -16,26 +15,25 @@ import 'screens/profile_screen.dart';
 import 'screens/login_screen.dart';
 import 'screens/signup_screen.dart';
 import 'screens/onboarding_screen.dart';
-import 'theme.dart';
+import 'screens/help_screen.dart';
+import 'screens/service_provider_home.dart';
+import 'screens/provider_type_selection_screen.dart';
+import 'services/connectivity_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  // await NotificationService().init();
 
-  // 🔥 Initialize Supabase FIRST
-  await Supabase.initialize(
-    url: 'https://rgessxgffhvlfjgfaymm.supabase.co',
-    anonKey: 'sb_publishable_n-otmGKdzflvIvnKe24QCQ_RcW7IOS8',
-  );
-
-  // 📦 Then SharedPreferences
+  // 📦 Load SharedPreferences
   final prefs = await SharedPreferences.getInstance();
   final isLoggedIn = prefs.getBool('isLoggedIn') ?? false;
   final hasOnboarded = prefs.getBool('hasOnboarded') ?? false;
+  final userRole = prefs.getString('userRole') ?? 'Farmer';
 
   String initialRoute = '/login';
   if (isLoggedIn) {
     if (hasOnboarded) {
-      initialRoute = '/';
+      initialRoute = userRole == 'Service Provider' ? '/service-provider-home' : '/';
     } else {
       initialRoute = '/onboarding';
     }
@@ -58,11 +56,19 @@ class _AgriConnectAppState extends State<AgriConnectApp> {
   void toggle() => setState(() =>
       _mode = _mode == ThemeMode.dark ? ThemeMode.light : ThemeMode.dark);
 
+  final ConnectivityService _connectivityService = ConnectivityService();
+
   @override
   Widget build(BuildContext context) {
-    return ThemeScope(
-      mode: _mode,
-      toggle: toggle,
+    return ListenableBuilder(
+      listenable: _connectivityService,
+      builder: (context, child) {
+        return ThemeScope(
+          mode: _mode,
+          toggle: toggle,
+          child: child!,
+        );
+      },
       child: MaterialApp(
         title: 'AgriConnect Pro',
         debugShowCheckedModeBanner: false,
@@ -74,7 +80,9 @@ class _AgriConnectAppState extends State<AgriConnectApp> {
           '/login': (_) => const LoginScreen(),
           '/signup': (_) => const SignupScreen(),
           '/onboarding': (_) => const OnboardingScreen(),
+          '/provider-type-selection': (_) => const ProviderTypeSelectionScreen(),
           '/': (_) => const HomeScreen(),
+          '/service-provider-home': (_) => const ServiceProviderHomeScreen(),
           '/vets': (_) => const VetsScreen(),
           '/suppliers': (_) => const SuppliersScreen(),
           '/market': (_) => const MarketScreen(),
@@ -84,6 +92,7 @@ class _AgriConnectAppState extends State<AgriConnectApp> {
           '/livestock': (_) => const LivestockScreen(),
           '/community': (_) => const CommunityScreen(),
           '/profile': (_) => const ProfileScreen(),
+          '/help': (_) => const HelpScreen(),
         },
       ),
     );

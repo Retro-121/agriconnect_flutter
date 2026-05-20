@@ -1,7 +1,8 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:geolocator/geolocator.dart';
 import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:geolocator/geolocator.dart';
 import '../widgets/phone_shell.dart';
 import '../widgets/agri_search_bar.dart';
 import '../theme.dart';
@@ -28,41 +29,56 @@ class _WeatherScreenState extends State<WeatherScreen> {
 
   Future<void> _fetchWeather() async {
     try {
-      // 1. Check permissions
-      LocationPermission permission = await Geolocator.checkPermission();
-      if (permission == LocationPermission.denied) {
-        permission = await Geolocator.requestPermission();
+      Position? position;
+      try {
+        LocationPermission permission = await Geolocator.checkPermission();
         if (permission == LocationPermission.denied) {
-          throw Exception('Location permissions are denied');
+          permission = await Geolocator.requestPermission();
         }
-      }
-      
-      if (permission == LocationPermission.deniedForever) {
-        throw Exception('Location permissions are permanently denied');
+        if (permission == LocationPermission.whileInUse || permission == LocationPermission.always) {
+          position = await Geolocator.getCurrentPosition();
+        }
+      } catch (e) {
+        debugPrint('Location error: $e');
       }
 
-      // 2. Get Location
-      Position position = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.low,
-      );
-
-      // 3. Fetch Data from OpenWeatherMap
       final apiKey = ApiConfig.weatherApiKey;
-      final lat = position.latitude;
-      final lon = position.longitude;
+      String urlCurrent;
+      String urlForecast;
+      
+      final prefs = await SharedPreferences.getInstance();
+      final savedLocation = prefs.getString('farmLocation') ?? '';
+      final farmLat = prefs.getDouble('farmLat');
+      final farmLon = prefs.getDouble('farmLon');
+
+      if (position != null) {
+        urlCurrent = 'https://api.openweathermap.org/data/2.5/weather?lat=${position.latitude}&lon=${position.longitude}&appid=$apiKey&units=metric';
+        urlForecast = 'https://api.openweathermap.org/data/2.5/forecast?lat=${position.latitude}&lon=${position.longitude}&appid=$apiKey&units=metric';
+      } else if (farmLat != null && farmLon != null) {
+        urlCurrent = 'https://api.openweathermap.org/data/2.5/weather?lat=$farmLat&lon=$farmLon&appid=$apiKey&units=metric';
+        urlForecast = 'https://api.openweathermap.org/data/2.5/forecast?lat=$farmLat&lon=$farmLon&appid=$apiKey&units=metric';
+      } else {
+        final location = savedLocation.isNotEmpty ? savedLocation : 'Tanzania';
+        urlCurrent = 'https://api.openweathermap.org/data/2.5/weather?q=$location&appid=$apiKey&units=metric';
+        urlForecast = 'https://api.openweathermap.org/data/2.5/forecast?q=$location&appid=$apiKey&units=metric';
+      }
 
       // Current Weather
-      final currentRes = await http.get(Uri.parse(
-          'https://api.openweathermap.org/data/2.5/weather?lat=$lat&lon=$lon&appid=$apiKey&units=metric'));
-      
+      final currentRes = await http.get(Uri.parse(urlCurrent));
+
       // Forecast
-      final forecastRes = await http.get(Uri.parse(
-          'https://api.openweathermap.org/data/2.5/forecast?lat=$lat&lon=$lon&appid=$apiKey&units=metric'));
+      final forecastRes = await http.get(Uri.parse(urlForecast));
 
       if (currentRes.statusCode == 200 && forecastRes.statusCode == 200) {
         if (!mounted) return;
+        final prefs = await SharedPreferences.getInstance();
+        final savedLocation = prefs.getString('farmLocation') ?? '';
+        
         setState(() {
           _currentWeather = json.decode(currentRes.body);
+          if (farmLat == null && farmLon == null && savedLocation.isNotEmpty) {
+            _currentWeather!['name'] = savedLocation;
+          }
           
           // Filter forecast (taking one item per day, roughly every 8th item since it's 3-hour chunks)
           final allForecasts = json.decode(forecastRes.body)['list'] as List;

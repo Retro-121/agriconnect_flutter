@@ -7,6 +7,55 @@ const harvest = Color(0xFFE8B84A);
 const cream = Color(0xFFF7F2E7);
 const soil = Color(0xFF3A2A1F);
 
+class AppColors {
+  static const forest = Color(0xFF2F6B3E);
+  static const forestDeep = Color(0xFF1E4A2B);
+  static const olive = Color(0xFF6B7A3A);
+  static const lime = Color(0xFFA8D85C);
+  static const earth = Color(0xFF8B5E34);
+  static const amber = Color(0xFFE0A93C);
+  static const emergency = Color(0xFFE2453C);
+  static const info = Color(0xFF3E8DDC);
+  static const bg = Color(0xFFF7F8F4);
+  static const card = Colors.white;
+  static const muted = Color(0xFF6B7280);
+}
+
+ThemeData buildTheme() {
+  final scheme = ColorScheme.fromSeed(
+    seedColor: AppColors.forest,
+    primary: AppColors.forest,
+    secondary: AppColors.lime,
+    error: AppColors.emergency,
+    surface: AppColors.card,
+  );
+  return ThemeData(
+    useMaterial3: true,
+    colorScheme: scheme,
+    scaffoldBackgroundColor: AppColors.bg,
+    textTheme: GoogleFonts.interTextTheme(),
+    cardTheme: CardThemeData(
+      elevation: 0,
+      color: AppColors.card,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+    ),
+    filledButtonTheme: FilledButtonThemeData(
+      style: FilledButton.styleFrom(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+      ),
+    ),
+    inputDecorationTheme: InputDecorationTheme(
+      filled: true,
+      fillColor: Colors.white,
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(14),
+        borderSide: BorderSide(color: Colors.black.withOpacity(0.08)),
+      ),
+    ),
+  );
+}
+
 ThemeData buildLightTheme() {
   final base = ThemeData.light(useMaterial3: true);
   return base.copyWith(

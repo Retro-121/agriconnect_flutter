@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
-
 import '../widgets/phone_shell.dart';
 import '../widgets/agri_search_bar.dart';
 import '../theme.dart';
@@ -270,7 +269,7 @@ class _SuppliersScreenState extends State<SuppliersScreen> {
     return PhoneShell(
       title: 'Suppliers',
       showBack: true,
-      bgImage: 'assets/backgrounds/bg-suppliers.jpg',
+      bgImage: 'assets/backgrounds/bg-suppliers-dark.jpg',
       bgImageDark: 'assets/backgrounds/bg-suppliers-dark.jpg',
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 20),

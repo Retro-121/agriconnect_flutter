@@ -37,7 +37,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   // Specialist Profile
   String _specCertifications = 'Certified Veterinary Surgeon (Tanzania Board)';
   String _specExperience = '8 Years';
-  String _specPricing = 'KES 2,000 / Session';
+  String _specPricing = 'TSH 0 / Session';
   String _specWorkingHours = '08:00 AM - 05:00 PM';
 
   // Product Provider State Lists
@@ -82,7 +82,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       // Load Specialist Profile Metadata
       _specCertifications = prefs.getString('spec_certs') ?? 'Certified Veterinary Surgeon (Tanzania Board)';
       _specExperience = prefs.getString('spec_exp') ?? '8 Years';
-      _specPricing = prefs.getString('spec_price') ?? 'KES 2,000 / Session';
+      _specPricing = prefs.getString('spec_price') ?? 'TSH 0 / Session';
       _specWorkingHours = prefs.getString('spec_hours') ?? '08:00 AM - 05:00 PM';
 
       // Load Product Provider Store Metadata
@@ -170,9 +170,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
       _specTransactions = List<Map<String, dynamic>>.from(json.decode(txsStr));
     } else {
       _specTransactions = [
-        {'date': '19 May 2026', 'desc': t('Consultation Fee - Mary W.', 'Ada ya Ushauri - Mary W.'), 'amount': 'KES 2,000', 'type': 'credit'},
-        {'date': '18 May 2026', 'desc': t('Withdrawal to M-Pesa', 'Kutoa pesa kwenda M-Pesa'), 'amount': '-KES 8,500', 'type': 'debit'},
-        {'date': '17 May 2026', 'desc': t('Diagnosis - John O.', 'Utambuzi - John O.'), 'amount': 'KES 2,500', 'type': 'credit'},
+        {'date': '19 May 2026', 'desc': t('Consultation Fee - Mary W.', 'Ada ya Ushauri - Mary W.'), 'amount': 'TSH 0', 'type': 'credit'},
+        {'date': '18 May 2026', 'desc': t('Withdrawal to M-Pesa', 'Kutoa pesa kwenda M-Pesa'), 'amount': 'TSH 0', 'type': 'debit'},
+        {'date': '17 May 2026', 'desc': t('Diagnosis - John O.', 'Utambuzi - John O.'), 'amount': 'TSH 0', 'type': 'credit'},
       ];
       _saveSpecTransactions();
     }
@@ -238,9 +238,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
       _prodInventory = List<Map<String, dynamic>>.from(json.decode(invStr));
     } else {
       _prodInventory = [
-        {'id': 'i1', 'name': 'Layers Feed Premium', 'category': 'Feed', 'qty': 45, 'price': 'KES 2,500', 'available': true},
-        {'id': 'i2', 'name': 'Maize Seed Pioneer', 'category': 'Seed', 'qty': 8, 'price': 'KES 950', 'available': true},
-        {'id': 'i3', 'name': 'NPK 17:17:17 Fertilizer', 'category': 'Fertilizer', 'qty': 60, 'price': 'KES 3,200', 'available': true},
+        {'id': 'i1', 'name': 'Layers Feed Premium', 'category': 'Feed', 'qty': 45, 'price': 'TSH 0', 'available': true},
+        {'id': 'i2', 'name': 'Maize Seed Pioneer', 'category': 'Seed', 'qty': 8, 'price': 'TSH 0', 'available': true},
+        {'id': 'i3', 'name': 'NPK 17:17:17 Fertilizer', 'category': 'Fertilizer', 'qty': 60, 'price': 'TSH 0', 'available': true},
       ];
       _saveProdInventory();
     }
@@ -264,7 +264,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     } else {
       _prodCoupons = [
         {'code': 'AGRISPRING10', 'discount': '10%', 'status': 'Active'},
-        {'code': 'FEEDBOOST5', 'discount': 'KES 500', 'status': 'Active'},
+        {'code': 'FEEDBOOST5', 'discount': 'TSH 0', 'status': 'Active'},
       ];
       _saveProdCoupons();
     }
@@ -494,34 +494,67 @@ class _DashboardScreenState extends State<DashboardScreen> {
             {'id': 'profile', 'label': t('Profile', 'Wasifu'), 'icon': Icons.person_outline},
           ];
 
-    return SizedBox(
-      height: 48,
-      child: ListView.builder(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-        itemCount: tabs.length,
-        itemBuilder: (context, index) {
-          final tab = tabs[index];
-          final isActive = _activeTab == tab['id'];
-          final color = isSeller ? Colors.orangeAccent : leaf;
-          return Padding(
-            padding: const EdgeInsets.only(right: 8.0),
-            child: ChoiceChip(
-              label: Text(tab['label'] as String),
-              selected: isActive,
-              selectedColor: color,
-              backgroundColor: Colors.white.withOpacity(0.08),
-              labelStyle: TextStyle(
-                color: isActive ? Colors.white : Colors.white70,
-                fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
-                fontSize: 12,
+    final color = isSeller ? Colors.orangeAccent : leaf;
+    
+    // Arrange tabs in a grid (3 per row for better spacing)
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        child: Wrap(
+          spacing: 6,
+          runSpacing: 6,
+          direction: Axis.horizontal,
+          children: List.generate(tabs.length, (index) {
+            final tab = tabs[index];
+            final isActive = _activeTab == tab['id'];
+            return SizedBox(
+              width: (MediaQuery.of(context).size.width - 40) / 3,
+              child: Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  onTap: () => setState(() => _activeTab = tab['id'] as String),
+                  borderRadius: BorderRadius.circular(12),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
+                    decoration: BoxDecoration(
+                      color: isActive 
+                          ? color.withOpacity(0.2) 
+                          : Colors.white.withOpacity(0.04),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: isActive ? color : Colors.transparent,
+                        width: isActive ? 1.5 : 0,
+                      ),
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          tab['icon'] as IconData,
+                          color: isActive ? color : Colors.white54,
+                          size: 20,
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          tab['label'] as String,
+                          textAlign: TextAlign.center,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: isActive ? Colors.white : Colors.white70,
+                            fontWeight: isActive ? FontWeight.w600 : FontWeight.w500,
+                            fontSize: 11,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
               ),
-              onSelected: (selected) {
-                if (selected) setState(() => _activeTab = tab['id'] as String);
-              },
-            ),
-          );
-        },
+            );
+          }),
+        ),
       ),
     );
   }
@@ -555,7 +588,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           children: [
             _cardSummary(t('Pending', 'Inasubiri'), '$pendingCount', Icons.pending_actions, AppColors.amber),
             _cardSummary(t('Appointments', 'Miadi'), '${_specAppointments.length}', Icons.today, leaf),
-            _cardSummary(t('Earnings', 'Mapato'), 'KES 42.5K', Icons.wallet, AppColors.forest),
+            _cardSummary(t('Earnings', 'Mapato'), 'TSH 0', Icons.wallet, AppColors.forest),
             _cardSummary(t('Active Clients', 'Wateja'), '24', Icons.people, AppColors.info),
             _cardSummary(t('Rating', 'Ukadiriaji'), '4.8 ⭐', Icons.star, Colors.orange),
             _cardSummary(t('Completed', 'Imekamilika'), '112', Icons.task_alt, leaf),
@@ -992,7 +1025,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             children: [
               Text(t('TOTAL BALANCE', 'SALIO LA JUMLA'), style: const TextStyle(color: Colors.white70, fontSize: 11)),
               const SizedBox(height: 6),
-              const Text('KES 42,500', style: TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.bold)),
+              const Text('TSH 0', style: TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.bold)),
               const SizedBox(height: 16),
               ElevatedButton(
                 style: ElevatedButton.styleFrom(backgroundColor: AppColors.lime, foregroundColor: AppColors.forestDeep),
@@ -1123,7 +1156,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             _cardSummary(t('Pending Del', 'Inayosafirishwa'), '2', Icons.local_shipping, Colors.blue),
             _cardSummary(t('In Stock', 'Kwenye Stoki'), '${_prodInventory.length}', Icons.inventory_2, leaf),
             _cardSummary(t('Low Stock', 'Stoki Chache'), '3', Icons.warning_amber, Colors.red),
-            _cardSummary(t('Revenue', 'Mapato'), 'KES 148K', Icons.attach_money, AppColors.forestDeep),
+            _cardSummary(t('Revenue', 'Mapato'), 'TSH 0', Icons.attach_money, AppColors.forestDeep),
             _cardSummary(t('Rating', 'Ukadiriaji'), '4.7 ⭐', Icons.star, Colors.orange),
           ],
         ),
@@ -1302,7 +1335,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           mainAxisSize: MainAxisSize.min,
           children: [
             TextField(controller: nameCtrl, decoration: InputDecoration(labelText: t('Product Name', 'Jina la Bidhaa'))),
-            TextField(controller: priceCtrl, decoration: InputDecoration(labelText: t('Price (KES)', 'Bei (KES)'))),
+            TextField(controller: priceCtrl, decoration: InputDecoration(labelText: t('Price (TSH)', 'Bei (TSH)'))),
             TextField(controller: qtyCtrl, keyboardType: TextInputType.number, decoration: InputDecoration(labelText: t('Quantity', 'Kiasi'))),
           ],
         ),
@@ -1317,7 +1350,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     'name': nameCtrl.text,
                     'category': 'General',
                     'qty': int.tryParse(qtyCtrl.text) ?? 10,
-                    'price': 'KES ${priceCtrl.text}',
+                    'price': 'TSH ${priceCtrl.text}',
                     'available': true
                   });
                 });
@@ -1415,7 +1448,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           mainAxisSize: MainAxisSize.min,
           children: [
             TextField(controller: codeCtrl, decoration: InputDecoration(labelText: t('Coupon Code', 'Nambari ya Kuponi'))),
-            TextField(controller: discCtrl, decoration: InputDecoration(labelText: t('Discount Value (e.g. 15% or KES 200)', 'Kiasi cha Punguzo'))),
+            TextField(controller: discCtrl, decoration: InputDecoration(labelText: t('Discount Value (e.g. 15% or TSH 200)', 'Kiasi cha Punguzo'))),
           ],
         ),
         actions: [

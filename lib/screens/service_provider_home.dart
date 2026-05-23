@@ -1,12 +1,13 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../theme.dart';
 import '../widgets/profile_avatar.dart';
 import '../provider_types.dart';
 import 'dashboard_screen.dart';
 import 'assistant_screen.dart';
 import 'emergencies_screen.dart';
-import 'business_screen.dart';
 
 class ServiceProviderHomeScreen extends StatefulWidget {
   const ServiceProviderHomeScreen({super.key});
@@ -40,19 +41,8 @@ class _ServiceProviderHomeScreenState extends State<ServiceProviderHomeScreen> {
 
   String t(String en, String sw) => _language == 'Kiswahili' ? sw : en;
 
-  bool _isSeller(ProviderType type) {
-    return type == ProviderType.feed ||
-        type == ProviderType.seed ||
-        type == ProviderType.fertilizer ||
-        type == ProviderType.agrochem ||
-        type == ProviderType.greenhouse ||
-        type == ProviderType.equipment ||
-        type == ProviderType.transport;
-  }
-
   @override
   Widget build(BuildContext context) {
-    final isSeller = _isSeller(_provider.type);
     final pages = [
       const EmergenciesScreen(),
       const ServiceProviderClientsPage(),
@@ -134,7 +124,7 @@ class _ServiceProviderHomeScreenState extends State<ServiceProviderHomeScreen> {
           Padding(
             padding: const EdgeInsets.only(right: 12),
             child: GestureDetector(
-              onTap: () => Navigator.pushNamed(context, '/profile').then((_) => _loadLanguage()),
+              onTap: () => Navigator.pushNamed(context, '/service-provider-profile').then((_) => _loadLanguage()),
               child: ProfileAvatar(
                 radius: 18,
                 imageUrl: _profileImageUrl.isNotEmpty ? _profileImageUrl : null,
@@ -189,8 +179,160 @@ class _ServiceProviderHomeScreenState extends State<ServiceProviderHomeScreen> {
   }
 }
 
-class ServiceProviderClientsPage extends StatelessWidget {
+class ServiceProviderClientsPage extends StatefulWidget {
   const ServiceProviderClientsPage({super.key});
+
+  @override
+  State<ServiceProviderClientsPage> createState() => _ServiceProviderClientsPageState();
+}
+
+class _ServiceProviderClientsPageState extends State<ServiceProviderClientsPage> {
+  final List<Map<String, dynamic>> _clients = [];
+  final List<Map<String, dynamic>> _orders = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadData();
+  }
+
+  Future<void> _loadData() async {
+    final prefs = await SharedPreferences.getInstance();
+    final clientStrings = prefs.getStringList('providerClients') ?? [];
+    final orderStrings = prefs.getStringList('providerOrders') ?? [];
+
+    setState(() {
+      _clients.clear();
+      _clients.addAll(clientStrings.map((item) => Map<String, dynamic>.from(json.decode(item) as Map)));
+      _orders.clear();
+      _orders.addAll(orderStrings.map((item) => Map<String, dynamic>.from(json.decode(item) as Map)));
+    });
+  }
+
+  Future<void> _saveClients() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList('providerClients', _clients.map((client) => json.encode(client)).toList());
+  }
+
+  Future<void> _saveOrders() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList('providerOrders', _orders.map((order) => json.encode(order)).toList());
+  }
+
+  Future<void> _showAddClientDialog() async {
+    final nameCtrl = TextEditingController();
+    final phoneCtrl = TextEditingController();
+    final serviceCtrl = TextEditingController();
+    final locationCtrl = TextEditingController(text: 'Tanzania');
+
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Add Client'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(controller: nameCtrl, decoration: const InputDecoration(labelText: 'Client Name')),
+              const SizedBox(height: 12),
+              TextField(controller: phoneCtrl, decoration: const InputDecoration(labelText: 'Phone')),
+              const SizedBox(height: 12),
+              TextField(controller: serviceCtrl, decoration: const InputDecoration(labelText: 'Service Required')),
+              const SizedBox(height: 12),
+              TextField(controller: locationCtrl, decoration: const InputDecoration(labelText: 'Location')),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          ElevatedButton(
+            onPressed: () {
+              if (nameCtrl.text.trim().isEmpty || serviceCtrl.text.trim().isEmpty) return;
+              _clients.add({
+                'name': nameCtrl.text.trim(),
+                'phone': phoneCtrl.text.trim(),
+                'service': serviceCtrl.text.trim(),
+                'location': locationCtrl.text.trim(),
+                'added': DateTime.now().toIso8601String(),
+              });
+              _saveClients();
+              setState(() {});
+              Navigator.pop(ctx, true);
+            },
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+
+    if (result == true && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Client saved.')));
+    }
+  }
+
+  Future<void> _showAddOrderDialog() async {
+    final clientCtrl = TextEditingController();
+    final itemsCtrl = TextEditingController();
+    final amountCtrl = TextEditingController();
+    final addressCtrl = TextEditingController(text: 'Tanzania');
+
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Add Order'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(controller: clientCtrl, decoration: const InputDecoration(labelText: 'Client Name')),
+              const SizedBox(height: 12),
+              TextField(controller: itemsCtrl, decoration: const InputDecoration(labelText: 'Order Description')),
+              const SizedBox(height: 12),
+              TextField(controller: amountCtrl, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Amount (TSH)')),
+              const SizedBox(height: 12),
+              TextField(controller: addressCtrl, decoration: const InputDecoration(labelText: 'Service Location')),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          ElevatedButton(
+            onPressed: () {
+              if (clientCtrl.text.trim().isEmpty || itemsCtrl.text.trim().isEmpty) return;
+              final amount = double.tryParse(amountCtrl.text.replaceAll(',', '')) ?? 0;
+              _orders.add({
+                'client': clientCtrl.text.trim(),
+                'items': itemsCtrl.text.trim(),
+                'amount': amount,
+                'location': addressCtrl.text.trim(),
+                'created': DateTime.now().toIso8601String(),
+              });
+              _saveOrders();
+              setState(() {});
+              Navigator.pop(ctx, true);
+            },
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+
+    if (result == true && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Order saved.')));
+    }
+  }
+
+  Future<void> _removeClient(int index) async {
+    _clients.removeAt(index);
+    await _saveClients();
+    setState(() {});
+  }
+
+  Future<void> _removeOrder(int index) async {
+    _orders.removeAt(index);
+    await _saveOrders();
+    setState(() {});
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -199,22 +341,88 @@ class ServiceProviderClientsPage extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'Clients',
-            style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Clients & Orders',
+                style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
+              ),
+              Row(
+                children: [
+                  ElevatedButton.icon(
+                    onPressed: _showAddClientDialog,
+                    icon: const Icon(Icons.person_add, size: 18),
+                    label: const Text('Add Client'),
+                  ),
+                  const SizedBox(width: 8),
+                  ElevatedButton.icon(
+                    onPressed: _showAddOrderDialog,
+                    icon: const Icon(Icons.add_shopping_cart, size: 18),
+                    label: const Text('Add Order'),
+                  ),
+                ],
+              ),
+            ],
           ),
-          const SizedBox(height: 12),
-          const Text('People connected to this service provider appear here.'),
-          const SizedBox(height: 20),
+          const SizedBox(height: 16),
           Expanded(
-            child: ListView(
-              children: List.generate(
-                5,
-                (index) => ListTile(
-                  leading: const CircleAvatar(child: Icon(Icons.person, size: 18)),
-                  title: Text('Client ${index + 1}'),
-                  subtitle: const Text('Connected service user'),
-                ),
+            child: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const SizedBox(height: 8),
+                  Text('Clients', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w600)),
+                  const SizedBox(height: 8),
+                  if (_clients.isEmpty)
+                    const Text('No clients yet. Add a client to get started.')
+                  else
+                    ..._clients.asMap().entries.map((entry) {
+                      final index = entry.key;
+                      final client = entry.value;
+                      return Card(
+                        margin: const EdgeInsets.only(bottom: 12),
+                        child: ListTile(
+                          leading: const CircleAvatar(child: Icon(Icons.person)),
+                          title: Text(client['name'] ?? 'Unknown'),
+                          subtitle: Text('${client['service'] ?? ''} • ${client['location'] ?? 'Tanzania'}'),
+                          trailing: IconButton(
+                            icon: const Icon(Icons.delete_outline),
+                            onPressed: () => _removeClient(index),
+                          ),
+                        ),
+                      );
+                    }),
+                  const SizedBox(height: 20),
+                  Text('Orders', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w600)),
+                  const SizedBox(height: 8),
+                  if (_orders.isEmpty)
+                    const Text('No orders yet. Create orders to track service requests or product deliveries.')
+                  else
+                    ..._orders.asMap().entries.map((entry) {
+                      final index = entry.key;
+                      final order = entry.value;
+                      return Card(
+                        margin: const EdgeInsets.only(bottom: 12),
+                        child: ListTile(
+                          leading: const CircleAvatar(child: Icon(Icons.shopping_bag)),
+                          title: Text(order['client'] ?? 'Client'),
+                          subtitle: Text('${order['items'] ?? 'Order'} · ${order['location'] ?? 'Tanzania'}'),
+                          trailing: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            children: [
+                              Text('TSH ${order['amount']?.toStringAsFixed(0) ?? '0'}', style: const TextStyle(fontWeight: FontWeight.bold)),
+                              IconButton(
+                                icon: const Icon(Icons.delete_outline),
+                                onPressed: () => _removeOrder(index),
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    }),
+                ],
               ),
             ),
           ),
@@ -224,31 +432,361 @@ class ServiceProviderClientsPage extends StatelessWidget {
   }
 }
 
-class ServiceProviderProfileTab extends StatelessWidget {
+class ServiceProviderProfileTab extends StatefulWidget {
   const ServiceProviderProfileTab({super.key});
 
   @override
+  State<ServiceProviderProfileTab> createState() => _ServiceProviderProfileTabState();
+}
+
+class _ServiceProviderProfileTabState extends State<ServiceProviderProfileTab> {
+  double _balance = 0.0;
+  String _selectedAgent = 'Vodacom M-Pesa';
+  final TextEditingController _incomeController = TextEditingController();
+  final TextEditingController _withdrawController = TextEditingController();
+  final List<String> _agents = ['Vodacom M-Pesa', 'Airtel Money', 'CRDB Bank', 'NMB Bank'];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadBalance();
+  }
+
+  @override
+  void dispose() {
+    _incomeController.dispose();
+    _withdrawController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadBalance() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      _balance = prefs.getDouble('providerBalance') ?? 0.0;
+    });
+  }
+
+  Future<void> _saveBalance() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setDouble('providerBalance', _balance);
+  }
+
+  Future<void> _signOut() async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text('Sign Out'),
+        content: const Text('Are you sure you want to sign out?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Sign Out'),
+          ),
+        ],
+      ),
+    );
+    if (confirm != true || !mounted) return;
+    try {
+      await Supabase.instance.client.auth.signOut();
+    } catch (_) {
+      // Ignore sign out errors and continue.
+    }
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('isLoggedIn', false);
+    if (!mounted) return;
+    Navigator.pushNamedAndRemoveUntil(context, '/login', (route) => false);
+  }
+
+  Future<void> _addIncome() async {
+    final amount = double.tryParse(_incomeController.text.replaceAll(',', '').trim()) ?? 0.0;
+    if (amount <= 0) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Enter a valid income amount.')));
+      return;
+    }
+    setState(() => _balance += amount);
+    await _saveBalance();
+    _incomeController.clear();
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Income added.')));
+  }
+
+  Future<void> _withdrawFunds() async {
+    final amount = double.tryParse(_withdrawController.text.replaceAll(',', '').trim()) ?? 0.0;
+    if (amount <= 0) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Enter a valid withdrawal amount.')));
+      return;
+    }
+    if (amount > _balance) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Insufficient balance.')));
+      return;
+    }
+    setState(() => _balance -= amount);
+    await _saveBalance();
+    _withdrawController.clear();
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Withdrawn TSH $amount via $_selectedAgent.')));
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(24.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Service Provider Profile',
+            style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 12),
+          const Text('Manage your balance, withdrawals, and provider details from one place.'),
+          const SizedBox(height: 20),
+          Card(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+            child: Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('Current Balance', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+                  const SizedBox(height: 8),
+                  Text('TSH ${_balance.toStringAsFixed(0)}', style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 12),
+                  const Text('Your balance updates automatically when you add income or withdraw funds.'),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 20),
+          Text('Add Income', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600)),
+          const SizedBox(height: 8),
+          TextField(
+            controller: _incomeController,
+            keyboardType: TextInputType.number,
+            decoration: const InputDecoration(
+              labelText: 'Income Amount (TSH)',
+              border: OutlineInputBorder(),
+              prefixIcon: Icon(Icons.add_business),
+            ),
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: AppColors.forest),
+              onPressed: _addIncome,
+              child: const Text('Add Income'),
+            ),
+          ),
+          const SizedBox(height: 24),
+          Text('Withdraw Funds', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600)),
+          const SizedBox(height: 8),
+          DropdownButtonFormField<String>(
+            value: _selectedAgent,
+            items: _agents.map((agent) => DropdownMenuItem(value: agent, child: Text(agent))).toList(),
+            onChanged: (value) {
+              if (value != null) setState(() => _selectedAgent = value);
+            },
+            decoration: const InputDecoration(
+              labelText: 'Withdrawal Agent',
+              border: OutlineInputBorder(),
+            ),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _withdrawController,
+            keyboardType: TextInputType.number,
+            decoration: const InputDecoration(
+              labelText: 'Amount to Withdraw (TSH)',
+              border: OutlineInputBorder(),
+              prefixIcon: Icon(Icons.payments),
+            ),
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: AppColors.forest),
+              onPressed: _withdrawFunds,
+              child: const Text('Withdraw'),
+            ),
+          ),
+          const SizedBox(height: 24),
+          ElevatedButton(
+            onPressed: () => Navigator.pushNamed(context, '/service-provider-profile'),
+            child: const Text('Edit Full Profile'),
+          ),
+          const SizedBox(height: 20),
+          TextButton.icon(
+            onPressed: _signOut,
+            icon: const Icon(Icons.logout, color: Colors.red),
+            label: const Text(
+              'Logout',
+              style: TextStyle(color: Colors.red, fontWeight: FontWeight.w600),
+            ),
+            style: TextButton.styleFrom(
+              backgroundColor: Colors.red.withOpacity(0.1),
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class ServiceProviderProfileScreen extends StatefulWidget {
+  const ServiceProviderProfileScreen({super.key});
+
+  @override
+  State<ServiceProviderProfileScreen> createState() => _ServiceProviderProfileScreenState();
+}
+
+class _ServiceProviderProfileScreenState extends State<ServiceProviderProfileScreen> {
+  String _userName = '';
+  String _serviceCategory = 'General Service';
+  String _farmLocation = 'Tanzania';
+  String _language = 'English';
+  String _profileImageUrl = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadData();
+  }
+
+  Future<void> _loadData() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      _userName = prefs.getString('userName') ?? '';
+      _profileImageUrl = prefs.getString('profileImageUrl') ?? '';
+      _serviceCategory = prefs.getString('serviceCategory') ?? 'General Service';
+      _farmLocation = prefs.getString('farmLocation') ?? 'Tanzania';
+      _language = prefs.getString('language') ?? 'English';
+    });
+  }
+
+  String t(String en, String sw) => _language == 'Kiswahili' ? sw : en;
+
+  Future<void> _signOut() async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text('Sign Out'),
+        content: const Text('Are you sure you want to sign out?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Sign Out'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true || !mounted) return;
+    try {
+      await Supabase.instance.client.auth.signOut();
+    } catch (_) {
+      // Ignore sign out errors and continue.
+    }
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('isLoggedIn', false);
+    if (!mounted) return;
+    Navigator.pushNamedAndRemoveUntil(context, '/login', (route) => false);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(t('Service Provider Profile', 'Wasifu wa Mtoa Huduma')),
+        backgroundColor: AppColors.forest,
+      ),
+      body: SingleChildScrollView(
         padding: const EdgeInsets.all(24.0),
         child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              'Profile',
-              style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
+            Center(
+              child: ProfileAvatar(
+                radius: 42,
+                imageUrl: _profileImageUrl.isNotEmpty ? _profileImageUrl : null,
+                initials: _userName.isNotEmpty ? _userName[0].toUpperCase() : 'S',
+                backgroundColor: AppColors.forest,
+              ),
             ),
+            const SizedBox(height: 16),
+            Center(
+              child: Text(
+                _userName.isNotEmpty ? _userName : t('Service Provider', 'Mtoa Huduma'),
+                style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Center(child: Text(_serviceCategory, style: const TextStyle(color: AppColors.muted))),
+            const SizedBox(height: 24),
+            Text(t('Service Area', 'Eneo la Huduma'), style: const TextStyle(fontWeight: FontWeight.bold)),
+            const SizedBox(height: 6),
+            Text(_farmLocation),
+            const SizedBox(height: 18),
+            Text(t('Profile Settings', 'Mipangilio ya Wasifu'), style: const TextStyle(fontWeight: FontWeight.bold)),
             const SizedBox(height: 12),
-            const Text('Service provider profile information will be shown here.'),
-            const SizedBox(height: 20),
-            ElevatedButton(
-              onPressed: () => Navigator.pushNamed(context, '/profile'),
-              child: const Text('Open full profile'),
+            Card(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              child: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _profileRow(t('Role', 'Jukumu'), t('Service Provider', 'Mtoa Huduma')),
+                    const SizedBox(height: 12),
+                    _profileRow(t('Language', 'Lugha'), _language),
+                    const SizedBox(height: 12),
+                    _profileRow(t('Offline Mode', 'Hali ya Nje ya Mtandao'), t('Disabled', 'Imezimwa')),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 24),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                style: ElevatedButton.styleFrom(backgroundColor: AppColors.forest),
+                onPressed: _signOut,
+                child: Text(t('Sign Out', 'Toka')), 
+              ),
             ),
           ],
         ),
       ),
+    );
+  }
+
+  Widget _profileRow(String label, String value) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Expanded(child: Text(label, style: const TextStyle(color: AppColors.muted))),
+        Text(value, style: const TextStyle(fontWeight: FontWeight.w600)),
+      ],
     );
   }
 }

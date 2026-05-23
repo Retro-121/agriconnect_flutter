@@ -29,6 +29,12 @@ class _WeatherScreenState extends State<WeatherScreen> {
 
   Future<void> _fetchWeather() async {
     try {
+      // Validate API key before making requests
+      if (!ApiConfig.hasValidWeatherKey) {
+        debugPrint('Missing OPENWEATHER_KEY. Please configure your API key.');
+        return;
+      }
+
       Position? position;
       try {
         LocationPermission permission = await Geolocator.checkPermission();
@@ -73,20 +79,24 @@ class _WeatherScreenState extends State<WeatherScreen> {
         if (!mounted) return;
         final prefs = await SharedPreferences.getInstance();
         final savedLocation = prefs.getString('farmLocation') ?? '';
-        
+
+        final locationLabel = position != null
+            ? '${position.latitude.toStringAsFixed(4)}, ${position.longitude.toStringAsFixed(4)}'
+            : (farmLat != null && farmLon != null)
+                ? '${farmLat.toStringAsFixed(4)}, ${farmLon.toStringAsFixed(4)}'
+                : (savedLocation.isNotEmpty ? savedLocation : 'Your Location');
+
         setState(() {
           _currentWeather = json.decode(currentRes.body);
-          if (farmLat == null && farmLon == null && savedLocation.isNotEmpty) {
-            _currentWeather!['name'] = savedLocation;
-          }
-          
+          _currentWeather!['name'] = locationLabel;
+
           // Filter forecast (taking one item per day, roughly every 8th item since it's 3-hour chunks)
           final allForecasts = json.decode(forecastRes.body)['list'] as List;
           _forecastList = [];
           for (int i = 0; i < allForecasts.length; i += 8) {
              _forecastList!.add(allForecasts[i]);
           }
-          
+
           _isLoading = false;
         });
       } else {

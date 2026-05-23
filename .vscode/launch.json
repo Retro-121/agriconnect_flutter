@@ -1,0 +1,17 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Flutter Web (Chrome)",
+      "request": "launch",
+      "type": "dart",
+      "deviceId": "chrome",
+      "args": [
+        "--dart-define=GROQ_KEY=${env:GROQ_KEY}",
+        "--dart-define=GEMINI_KEY=${env:GEMINI_KEY}",
+        "--dart-define=OPENWEATHER_KEY=${env:OPENWEATHER_KEY}",
+        "--dart-define=SUPABASE_ANON_KEY=${env:SUPABASE_ANON_KEY}"
+      ]
+    }
+  ]
+}

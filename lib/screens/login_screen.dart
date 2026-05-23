@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+
 import '../theme.dart';
-import '../services/email_service.dart';
 import '../widgets/phone_shell.dart';
+
+final supabase = Supabase.instance.client;
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -11,108 +14,140 @@ class LoginScreen extends StatefulWidget {
   State<LoginScreen> createState() => _LoginScreenState();
 }
 
-class _LoginScreenState extends State<LoginScreen> {
+class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
+
   bool _isLoading = false;
   String _loadingText = 'Logging in...';
 
   @override
   void initState() {
     super.initState();
-    _loadSavedCredentials();
+    WidgetsBinding.instance.addObserver(this);
+    _checkAuthState();
   }
 
-  Future<void> _loadSavedCredentials() async {
-    final prefs = await SharedPreferences.getInstance();
-    final savedEmail = prefs.getString('saved_email');
-    final savedPassword = prefs.getString('saved_password');
-    if (savedEmail != null && savedPassword != null) {
-      setState(() {
-        _emailController.text = savedEmail;
-        _passwordController.text = savedPassword;
-      });
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _emailController.dispose();
+    _passwordController.dispose();
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _checkAuthState();
     }
   }
 
-  void _login() async {
+  Future<void> _checkAuthState() async {
+    final session = supabase.auth.currentSession;
+    final user = session?.user;
+
+    if (user != null && user.emailConfirmedAt != null) {
+      final prefs = await SharedPreferences.getInstance();
+      final hasOnboarded = prefs.getBool('hasOnboarded') ?? false;
+      final userRole = prefs.getString('userRole') ?? 'Farmer';
+
+      if (!mounted) return;
+
+      if (!hasOnboarded) {
+        Navigator.pushReplacementNamed(context, '/onboarding');
+      } else if (userRole == 'Service Provider') {
+        Navigator.pushReplacementNamed(context, '/service-provider-home');
+      } else {
+        Navigator.pushReplacementNamed(context, '/');
+      }
+    }
+  }
+
+  Future<void> _login() async {
     final email = _emailController.text.trim();
     final password = _passwordController.text.trim();
 
     if (email.isEmpty || password.isEmpty) {
-      _showSnack('Please enter both email and password');
+      _showSnack('Please enter email and password');
       return;
     }
 
-    // Email format validation
     final emailRegex = RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$');
     if (!emailRegex.hasMatch(email)) {
-      _showSnack('Please enter a valid email address');
+      _showSnack('Enter a valid email address');
       return;
     }
 
     setState(() {
       _isLoading = true;
-      _loadingText = 'Verifying email existence...';
+      _loadingText = 'Signing you in...';
     });
 
     try {
-      // 1. Verify if Gmail exists (Simulation)
-      final exists = await EmailService.verifyEmailExists(email);
-      if (!exists) {
-        setState(() => _isLoading = false);
-        _showSnack('This email does not seem to exist. Please use a real Gmail.');
+      /// 🔐 REAL SUPABASE LOGIN
+      final response = await supabase.auth.signInWithPassword(
+        email: email,
+        password: password,
+      );
+
+      final user = response.user;
+
+      if (user == null) {
+        _showSnack('Invalid login credentials');
         return;
       }
 
-      // 2. Check registration in local storage
+      /// 🔐 CHECK EMAIL VERIFICATION
+      if (user.emailConfirmedAt == null) {
+        await supabase.auth.signOut();
+        _showSnack('Please verify your email before logging in');
+        return;
+      }
+
+      /// 💾 Save minimal local UI state (NO PASSWORD STORAGE)
       final prefs = await SharedPreferences.getInstance();
-      List<String> registeredEmails = prefs.getStringList('registered_emails') ?? [];
-      if (!registeredEmails.contains(email)) {
-        setState(() => _isLoading = false);
-        _showSnack('Email not registered. Please sign up first.');
-        return;
-      }
-
-      setState(() => _loadingText = 'Sending login notification...');
-      
-      // 3. Send Login Notification (Simulation)
-      await EmailService.sendLoginNotification(email);
-
-      // 4. Save credentials for persistence
+      final cachedName = prefs.getString('userName') ?? prefs.getString('user_name');
+      final displayName = cachedName?.isNotEmpty == true ? cachedName! : (user.email?.split('@').first ?? email);
       await prefs.setBool('isLoggedIn', true);
       await prefs.setString('saved_email', email);
-      await prefs.setString('saved_password', password);
-      
-      final storedName = prefs.getString('user_name_$email');
-      await prefs.setString('userName', storedName ?? email);
-      
+      await prefs.setString('userName', displayName);
+
       if (!mounted) return;
-      
-      // Check if onboarded
+
+      /// 🚦 ROUTING LOGIC (your existing system)
       final hasOnboarded = prefs.getBool('hasOnboarded') ?? false;
-      if (hasOnboarded) {
-        // If they changed their role in a previous session, we might want to route differently
-        // For now, let's go to role selection or home based on saved role
-        final savedRole = prefs.getString('userRole');
-        if (savedRole == 'Service Provider') {
-          Navigator.pushReplacementNamed(context, '/service-provider-home');
+      final userRole = prefs.getString('userRole') ?? 'Farmer';
+
+      if (!hasOnboarded) {
+        Navigator.pushReplacementNamed(context, '/onboarding');
+      } else {
+        if (userRole == 'Service Provider') {
+          Navigator.pushReplacementNamed(
+              context, '/service-provider-home');
         } else {
           Navigator.pushReplacementNamed(context, '/');
         }
-      } else {
-        Navigator.pushReplacementNamed(context, '/onboarding');
       }
+    } on AuthException catch (e) {
+      _showSnack(e.message);
     } catch (e) {
-      _showSnack('An error occurred. Please try again.');
+      _showSnack('Login failed. Try again.');
     } finally {
-      if (mounted) setState(() => _isLoading = false);
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
   }
 
   void _showSnack(String msg) {
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(msg), behavior: SnackBarBehavior.floating),
+      SnackBar(
+        content: Text(msg),
+        behavior: SnackBarBehavior.floating,
+      ),
     );
   }
 
@@ -123,77 +158,117 @@ class _LoginScreenState extends State<LoginScreen> {
       bgImage: 'assets/backgrounds/bg_field.jpg',
       child: Center(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 40),
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 40),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               Card(
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(20),
+                ),
                 elevation: 8,
                 child: Padding(
-                  padding: const EdgeInsets.all(24.0),
+                  padding: const EdgeInsets.all(24),
                   child: Column(
-                    mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Text('AgriConnect Pro',
-                          style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: leaf)),
+                      const Text(
+                        'AgriConnect Pro',
+                        style: TextStyle(
+                          fontSize: 26,
+                          fontWeight: FontWeight.bold,
+                          color: leaf,
+                        ),
+                      ),
                       const SizedBox(height: 8),
-                      const Text('Smart Farming Ecosystem', style: TextStyle(color: Colors.grey)),
+                      const Text(
+                        'Smart Farming Ecosystem',
+                        style: TextStyle(color: Colors.grey),
+                      ),
                       const SizedBox(height: 32),
+
+                      /// EMAIL
                       TextField(
                         controller: _emailController,
+                        keyboardType: TextInputType.emailAddress,
                         decoration: InputDecoration(
                           labelText: 'Email Address',
                           prefixIcon: const Icon(Icons.email_outlined),
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
                         ),
-                        keyboardType: TextInputType.emailAddress,
                       ),
+
                       const SizedBox(height: 16),
+
+                      /// PASSWORD
                       TextField(
                         controller: _passwordController,
+                        obscureText: true,
                         decoration: InputDecoration(
                           labelText: 'Password',
                           prefixIcon: const Icon(Icons.lock_outline),
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
                         ),
-                        obscureText: true,
                       ),
+
                       const SizedBox(height: 24),
+
+                      /// LOGIN BUTTON
                       SizedBox(
                         width: double.infinity,
                         child: ElevatedButton(
+                          onPressed: _isLoading ? null : _login,
                           style: ElevatedButton.styleFrom(
                             backgroundColor: leaf,
                             foregroundColor: Colors.white,
                             padding: const EdgeInsets.symmetric(vertical: 16),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
                           ),
-                          onPressed: _isLoading ? null : _login,
-                          child: const Text('Login', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                          child: _isLoading
+                              ? const CircularProgressIndicator(
+                                  color: Colors.white,
+                                )
+                              : const Text(
+                                  'Login',
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
                         ),
                       ),
+
                       const SizedBox(height: 16),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          const Text('Don\'t have an account?'),
-                          TextButton(
-                            onPressed: () => Navigator.pushNamed(context, '/signup'),
-                            child: const Text('Sign Up', style: TextStyle(color: leaf, fontWeight: FontWeight.bold)),
-                          ),
-                        ],
-                      )
+
+                      /// SIGNUP LINK
+                      TextButton(
+                        onPressed: () {
+                          Navigator.pushNamed(context, '/signup');
+                        },
+                        child: const Text(
+                          'Don’t have an account? Sign Up',
+                          style: TextStyle(color: leaf),
+                        ),
+                      ),
                     ],
                   ),
                 ),
               ),
+
               if (_isLoading) ...[
                 const SizedBox(height: 20),
-                const CircularProgressIndicator(color: Colors.white),
+                const CircularProgressIndicator(),
                 const SizedBox(height: 8),
-                Text(_loadingText, style: const TextStyle(color: Colors.white, fontSize: 16)),
-              ]
+                Text(
+                  _loadingText,
+                  style: const TextStyle(color: Colors.white),
+                ),
+              ],
             ],
           ),
         ),
@@ -201,4 +276,3 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 }
-

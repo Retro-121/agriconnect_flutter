@@ -47,11 +47,13 @@ class LivestockScreen extends StatefulWidget {
 class _LivestockScreenState extends State<LivestockScreen> {
   String _searchQuery = '';
   final List<CattleGroup> _livestock = [];
+  double _farmAcres = 0.0;
 
   @override
   void initState() {
     super.initState();
     _loadLivestock();
+    _loadAcres();
   }
 
   Future<void> _loadLivestock() async {
@@ -64,6 +66,52 @@ class _LivestockScreenState extends State<LivestockScreen> {
         _livestock.addAll(jsonList.map((e) => CattleGroup.fromJson(e)).toList());
       });
     }
+  }
+
+  Future<void> _loadAcres() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      _farmAcres = prefs.getDouble('farm_acres') ?? 0.0;
+    });
+  }
+
+  Future<void> _saveAcres() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setDouble('farm_acres', _farmAcres);
+  }
+
+  Future<void> _editAcres() async {
+    final acresController = TextEditingController(text: _farmAcres > 0 ? _farmAcres.toString() : '');
+    await showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Farm Size'),
+        content: TextField(
+          controller: acresController,
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          decoration: const InputDecoration(
+            labelText: 'Acres',
+            hintText: 'Enter farm size in acres',
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+          ElevatedButton(
+            onPressed: () {
+              final value = double.tryParse(acresController.text.trim());
+              if (value != null) {
+                setState(() {
+                  _farmAcres = value;
+                });
+                _saveAcres();
+                Navigator.pop(context);
+              }
+            },
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _saveLivestock() async {
@@ -234,6 +282,38 @@ class _LivestockScreenState extends State<LivestockScreen> {
         child: Column(
           children: [
             const SizedBox(height: 10),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(16),
+              margin: const EdgeInsets.only(bottom: 16),
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.surface.withOpacity(0.9),
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(color: Colors.black12),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text('Farm Size', style: TextStyle(fontWeight: FontWeight.bold)),
+                        const SizedBox(height: 6),
+                        Text(
+                          _farmAcres > 0 ? '$_farmAcres acres' : 'No acreage set yet',
+                          style: TextStyle(color: Theme.of(context).hintColor),
+                        ),
+                      ],
+                    ),
+                  ),
+                  ElevatedButton(
+                    onPressed: _editAcres,
+                    style: ElevatedButton.styleFrom(backgroundColor: leaf),
+                    child: const Text('Edit'),
+                  ),
+                ],
+              ),
+            ),
             AgriSearchBar(
               hintText: 'Search by category...',
               onChanged: (val) => setState(() => _searchQuery = val),

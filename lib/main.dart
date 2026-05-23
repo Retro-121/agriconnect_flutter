@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+
 import 'theme.dart';
 
 import 'screens/home_screen.dart';
@@ -20,23 +22,38 @@ import 'screens/service_provider_home.dart';
 import 'screens/provider_type_selection_screen.dart';
 import 'services/connectivity_service.dart';
 
+/// 🌍 Global Supabase client
+final supabase = Supabase.instance.client;
+
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  // await NotificationService().init();
 
-  // 📦 Load SharedPreferences
+  /// 🔐 Supabase initialization (SECURE PATTERN)
+  await Supabase.initialize(
+    url: 'https://twtfbjkjqckkwhpkyohn.supabase.co',
+    anonKey: const String.fromEnvironment('SUPABASE_ANON_KEY'),
+  );
+
+  /// 📦 Local storage
   final prefs = await SharedPreferences.getInstance();
-  final isLoggedIn = prefs.getBool('isLoggedIn') ?? false;
   final hasOnboarded = prefs.getBool('hasOnboarded') ?? false;
   final userRole = prefs.getString('userRole') ?? 'Farmer';
 
-  String initialRoute = '/login';
-  if (isLoggedIn) {
-    if (hasOnboarded) {
-      initialRoute = userRole == 'Service Provider' ? '/service-provider-home' : '/';
-    } else {
-      initialRoute = '/onboarding';
-    }
+  /// 🔐 Auth state
+  final session = supabase.auth.currentSession;
+  final isLoggedIn = session != null;
+
+  /// 🚦 Decide first screen
+  String initialRoute;
+
+  if (!isLoggedIn) {
+    initialRoute = '/login';
+  } else if (!hasOnboarded) {
+    initialRoute = '/onboarding';
+  } else {
+    initialRoute = userRole == 'Service Provider'
+        ? '/service-provider-home'
+        : '/';
   }
 
   runApp(AgriConnectApp(initialRoute: initialRoute));
@@ -44,7 +61,11 @@ Future<void> main() async {
 
 class AgriConnectApp extends StatefulWidget {
   final String initialRoute;
-  const AgriConnectApp({super.key, required this.initialRoute});
+
+  const AgriConnectApp({
+    super.key,
+    required this.initialRoute,
+  });
 
   @override
   State<AgriConnectApp> createState() => _AgriConnectAppState();
@@ -53,10 +74,14 @@ class AgriConnectApp extends StatefulWidget {
 class _AgriConnectAppState extends State<AgriConnectApp> {
   ThemeMode _mode = ThemeMode.system;
 
-  void toggle() => setState(() =>
-      _mode = _mode == ThemeMode.dark ? ThemeMode.light : ThemeMode.dark);
-
   final ConnectivityService _connectivityService = ConnectivityService();
+
+  void toggleTheme() {
+    setState(() {
+      _mode =
+          _mode == ThemeMode.dark ? ThemeMode.light : ThemeMode.dark;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -65,24 +90,35 @@ class _AgriConnectAppState extends State<AgriConnectApp> {
       builder: (context, child) {
         return ThemeScope(
           mode: _mode,
-          toggle: toggle,
+          toggle: toggleTheme,
           child: child!,
         );
       },
       child: MaterialApp(
         title: 'AgriConnect Pro',
         debugShowCheckedModeBanner: false,
+
         theme: buildLightTheme(),
         darkTheme: buildDarkTheme(),
         themeMode: _mode,
+
+        /// 🚀 Startup route
         initialRoute: widget.initialRoute,
+
+        /// 🧭 Routes
         routes: {
           '/login': (_) => const LoginScreen(),
           '/signup': (_) => const SignupScreen(),
           '/onboarding': (_) => const OnboardingScreen(),
-          '/provider-type-selection': (_) => const ProviderTypeSelectionScreen(),
+
+          '/provider-type-selection': (_) =>
+              const ProviderTypeSelectionScreen(),
+
           '/': (_) => const HomeScreen(),
-          '/service-provider-home': (_) => const ServiceProviderHomeScreen(),
+          '/service-provider-home': (_) =>
+              const ServiceProviderHomeScreen(),
+          '/service-provider-profile': (_) => const ServiceProviderProfileScreen(),
+
           '/vets': (_) => const VetsScreen(),
           '/suppliers': (_) => const SuppliersScreen(),
           '/market': (_) => const MarketScreen(),
@@ -99,6 +135,7 @@ class _AgriConnectAppState extends State<AgriConnectApp> {
   }
 }
 
+/// 🎨 Theme state sharing
 class ThemeScope extends InheritedWidget {
   final ThemeMode mode;
   final VoidCallback toggle;
@@ -110,9 +147,11 @@ class ThemeScope extends InheritedWidget {
     required super.child,
   });
 
-  static ThemeScope of(BuildContext c) =>
-      c.dependOnInheritedWidgetOfExactType<ThemeScope>()!;
+  static ThemeScope of(BuildContext context) {
+    return context.dependOnInheritedWidgetOfExactType<ThemeScope>()!;
+  }
 
   @override
-  bool updateShouldNotify(ThemeScope old) => old.mode != mode;
+  bool updateShouldNotify(ThemeScope oldWidget) =>
+      oldWidget.mode != mode;
 }

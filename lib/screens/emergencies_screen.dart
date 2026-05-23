@@ -14,6 +14,7 @@ class EmergenciesScreen extends StatefulWidget {
 class _Case {
   final String id;
   final String title;
+  final String details;
   final String who;
   final String where;
   final String phone;
@@ -24,6 +25,7 @@ class _Case {
   _Case({
     required this.id,
     required this.title,
+    required this.details,
     required this.who,
     required this.where,
     required this.phone,
@@ -35,6 +37,7 @@ class _Case {
   Map<String, dynamic> toJson() => {
     'id': id,
     'title': title,
+    'details': details,
     'who': who,
     'where': where,
     'phone': phone,
@@ -46,6 +49,7 @@ class _Case {
   factory _Case.fromJson(Map<String, dynamic> map) => _Case(
     id: map['id'] ?? '',
     title: map['title'] ?? '',
+    details: map['details'] ?? '',
     who: map['who'] ?? '',
     where: map['where'] ?? '',
     phone: map['phone'] ?? '',
@@ -94,6 +98,7 @@ class _EmergenciesScreenState extends State<EmergenciesScreen> {
 
   void _addCase() async {
     final titleCtrl = TextEditingController();
+    final detailsCtrl = TextEditingController();
     final nameCtrl = TextEditingController();
     final residenceCtrl = TextEditingController();
     final phoneCtrl = TextEditingController();
@@ -103,7 +108,7 @@ class _EmergenciesScreenState extends State<EmergenciesScreen> {
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setS) => AlertDialog(
-          title: Text(t('Add Client Triage', 'Ongeza Tathmini ya Mteja')),
+          title: Text(t('Add Client Emergency', 'Ongeza Dharura ya Mteja')),
           content: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -119,8 +124,17 @@ class _EmergenciesScreenState extends State<EmergenciesScreen> {
                 TextField(
                   controller: titleCtrl,
                   decoration: InputDecoration(
-                    labelText: t('Summary of Issue', 'Muhtasari wa Tatizo'),
-                    prefixIcon: const Icon(Icons.description),
+                    labelText: t('Emergency Title', 'Kichwa cha Dharura'),
+                    prefixIcon: const Icon(Icons.warning_amber_rounded),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: detailsCtrl,
+                  maxLines: 3,
+                  decoration: InputDecoration(
+                    labelText: t('Details / Symptoms', 'Maelezo / Dalili'),
+                    prefixIcon: const Icon(Icons.notes),
                   ),
                 ),
                 const SizedBox(height: 12),
@@ -163,13 +177,14 @@ class _EmergenciesScreenState extends State<EmergenciesScreen> {
             ),
             ElevatedButton(
               onPressed: () {
-                if (nameCtrl.text.isNotEmpty && titleCtrl.text.isNotEmpty) {
+                if (nameCtrl.text.trim().isNotEmpty && titleCtrl.text.trim().isNotEmpty) {
                   final newCase = _Case(
                     id: DateTime.now().millisecondsSinceEpoch.toString(),
-                    title: titleCtrl.text,
-                    who: nameCtrl.text,
-                    where: residenceCtrl.text,
-                    phone: phoneCtrl.text,
+                    title: titleCtrl.text.trim(),
+                    details: detailsCtrl.text.trim(),
+                    who: nameCtrl.text.trim(),
+                    where: residenceCtrl.text.trim(),
+                    phone: phoneCtrl.text.trim(),
                     severity: severity,
                     km: 1.0 + (10.0 * (1.0 - (1.0 / (1.0 + _cases.length)))), // mock distance
                     ago: t('1 min ago', 'Dk 1 iliyopita'),
@@ -264,6 +279,18 @@ class _EmergenciesScreenState extends State<EmergenciesScreen> {
                           child: const Icon(Icons.add, color: Colors.white),
                         ),
                       ],
+                    ),
+                    const SizedBox(height: 16),
+                    ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.emergency,
+                        foregroundColor: Colors.white,
+                        minimumSize: const Size.fromHeight(48),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                      ),
+                      onPressed: _addCase,
+                      icon: const Icon(Icons.add_circle_outline),
+                      label: Text(t('Add Emergency Client', 'Ongeza Mteja wa Dharura')),
                     ),
                     const SizedBox(height: 18),
                     if (_cases.isEmpty)
@@ -370,6 +397,10 @@ class _EmergencyCard extends StatelessWidget {
           if (c.phone.isNotEmpty) ...[
             const SizedBox(height: 2),
             Text(c.phone, style: const TextStyle(color: AppColors.muted, fontSize: 13, fontWeight: FontWeight.w500)),
+          ],
+          if (c.details.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Text(c.details, style: const TextStyle(color: AppColors.muted, fontSize: 13)),
           ],
           const SizedBox(height: 12),
           Row(

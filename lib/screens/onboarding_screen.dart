@@ -92,13 +92,16 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
       String resolvedName = 'Lat: ${position.latitude.toStringAsFixed(2)}, Lon: ${position.longitude.toStringAsFixed(2)}';
       try {
-        final apiKey = ApiConfig.weatherApiKey;
-        final url = 'https://api.openweathermap.org/data/2.5/weather?lat=${position.latitude}&lon=${position.longitude}&appid=$apiKey&units=metric';
-        final res = await http.get(Uri.parse(url));
-        if (res.statusCode == 200) {
-          final data = json.decode(res.body);
-          if (data['name'] != null && data['name'].toString().isNotEmpty) {
-            resolvedName = data['name'].toString();
+        // Validate API key before making request
+        if (ApiConfig.hasValidWeatherKey) {
+          final apiKey = ApiConfig.weatherApiKey;
+          final url = 'https://api.openweathermap.org/data/2.5/weather?lat=${position.latitude}&lon=${position.longitude}&appid=$apiKey&units=metric';
+          final res = await http.get(Uri.parse(url));
+          if (res.statusCode == 200) {
+            final data = json.decode(res.body);
+            if (data['name'] != null && data['name'].toString().isNotEmpty) {
+              resolvedName = data['name'].toString();
+            }
           }
         }
       } catch (e) {

@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'dart:convert';
 import '../widgets/phone_shell.dart';
 import '../widgets/profile_avatar.dart';
 import '../theme.dart';
@@ -17,7 +20,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
   String _farmAcres = '0';
   String _farmAnimals = '0';
   String _farmType = 'Farming';
-  String _farmLocation = '';
+  String _serviceCategory = 'General Service';
+  String _farmLocation = 'Tanzania';
   String _language = 'English';
   bool _offlineMode = false;
   String _userRole = 'Farmer';
@@ -36,6 +40,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       _farmAcres = prefs.getString('farmAcres') ?? '0';
       _farmAnimals = prefs.getString('farmAnimals') ?? '0';
       _farmType = prefs.getString('farmType') ?? 'Farming';
+      _serviceCategory = prefs.getString('serviceCategory') ?? 'General Service';
       _farmLocation = prefs.getString('farmLocation') ?? 'Tanzania';
       _language = prefs.getString('language') ?? 'English';
       _offlineMode = prefs.getBool('offlineMode') ?? false;
@@ -69,6 +74,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
       ),
     );
     if (confirm != true || !mounted) return;
+    try {
+      await Supabase.instance.client.auth.signOut();
+    } catch (_) {
+      // Ignore sign out failures and continue clearing local state.
+    }
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('isLoggedIn', false);
     if (!mounted) return;
@@ -91,6 +101,88 @@ class _ProfileScreenState extends State<ProfileScreen> {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),
     );
+  }
+
+  // ── Change Profile Picture ──────────────────────────────────
+  Future<void> _changeProfilePicture() async {
+    final result = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Text(_language == 'Kiswahili' ? 'Badilisha Picha' : 'Change Profile Picture'),
+        content: const Text('Choose an option'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, 'cancel'),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton.icon(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: leaf,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+            onPressed: () => Navigator.pop(ctx, 'camera'),
+            icon: const Icon(Icons.camera_alt),
+            label: Text(_language == 'Kiswahili' ? 'Kamera' : 'Camera'),
+          ),
+          ElevatedButton.icon(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: leaf,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+            onPressed: () => Navigator.pop(ctx, 'gallery'),
+            icon: const Icon(Icons.photo_library),
+            label: Text(_language == 'Kiswahili' ? 'Picha' : 'Gallery'),
+          ),
+        ],
+      ),
+    );
+
+    if (result == null || result == 'cancel') return;
+
+    try {
+      final picker = ImagePicker();
+      XFile? pickedFile;
+
+      if (result == 'camera') {
+        pickedFile = await picker.pickImage(source: ImageSource.camera, imageQuality: 80);
+      } else if (result == 'gallery') {
+        pickedFile = await picker.pickImage(source: ImageSource.gallery, imageQuality: 80);
+      }
+
+      if (pickedFile != null && mounted) {
+        // Read image as bytes and convert to base64
+        final bytes = await pickedFile.readAsBytes();
+        final base64Image = base64Encode(bytes);
+
+        // Save to SharedPreferences
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString('profileImageUrl', 'data:image/png;base64,$base64Image');
+
+        setState(() => _profileImageUrl = 'data:image/png;base64,$base64Image');
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(_language == 'Kiswahili' ? 'Picha Imetengenezwa' : 'Profile picture updated'),
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(_language == 'Kiswahili' ? 'Hitilafu na kukamatia picha' : 'Error picking image'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
   }
 
   // ── Language Picker ─────────────────────────────────────────
@@ -246,6 +338,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Future<void> _editProviderSettings() async {
     final nameCtrl = TextEditingController(text: _userName);
     final locationCtrl = TextEditingController(text: _farmLocation);
+    final categoryCtrl = TextEditingController(text: _serviceCategory);
 
     await showModalBottomSheet(
       context: context,
@@ -294,6 +387,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   prefixIcon: const Icon(Icons.location_on_outlined),
                 ),
               ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: categoryCtrl,
+                decoration: InputDecoration(
+                  labelText: _language == 'Kiswahili' ? 'Aina ya Huduma' : 'Service Category',
+                  hintText: 'e.g. Veterinary, Equipment',
+                  border: const OutlineInputBorder(),
+                  prefixIcon: const Icon(Icons.business_center),
+                ),
+              ),
               const SizedBox(height: 20),
               SizedBox(
                 width: double.infinity,
@@ -308,9 +411,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     final prefs = await SharedPreferences.getInstance();
                     await prefs.setString('userName', nameCtrl.text);
                     await prefs.setString('farmLocation', locationCtrl.text);
+                    await prefs.setString('serviceCategory', categoryCtrl.text.isNotEmpty ? categoryCtrl.text : 'General Service');
                     setState(() {
                       _userName = nameCtrl.text;
                       _farmLocation = locationCtrl.text;
+                      _serviceCategory = categoryCtrl.text.isNotEmpty ? categoryCtrl.text : 'General Service';
                     });
                     if (ctx.mounted) Navigator.pop(ctx);
                   },
@@ -360,12 +465,32 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ),
               child: Column(
                 children: [
-                  ProfileAvatar(
-                    radius: 40,
-                    imageUrl: _profileImageUrl.isNotEmpty ? _profileImageUrl : null,
-                    initials: initials.isEmpty ? 'F' : initials,
-                    backgroundColor: Colors.white24,
-                    iconColor: Colors.white,
+                  GestureDetector(
+                    onTap: _changeProfilePicture,
+                    child: Stack(
+                      children: [
+                        ProfileAvatar(
+                          radius: 40,
+                          imageUrl: _profileImageUrl.isNotEmpty ? _profileImageUrl : null,
+                          initials: initials.isEmpty ? 'F' : initials,
+                          backgroundColor: Colors.white24,
+                          iconColor: Colors.white,
+                        ),
+                        Positioned(
+                          bottom: 0,
+                          right: 0,
+                          child: Container(
+                            padding: const EdgeInsets.all(6),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(50),
+                              boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.2), blurRadius: 8)],
+                            ),
+                            child: const Icon(Icons.camera_alt, size: 16, color: Color(0xFF1F5A38)),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                   const SizedBox(height: 12),
                   Text(

@@ -1,9 +1,10 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../main.dart';
 import '../services/connectivity_service.dart';
 
-class PhoneShell extends StatelessWidget {
+class PhoneShell extends StatefulWidget {
   final String? title;
   final Widget child;
   final bool showBack;
@@ -11,8 +12,6 @@ class PhoneShell extends StatelessWidget {
   final String? bgImage;
   final String? bgImageDark;
   final bool showThemeToggle;
-
-  // ADD THIS
   final Widget? floatingActionButton;
 
   const PhoneShell({
@@ -24,24 +23,45 @@ class PhoneShell extends StatelessWidget {
     this.showBack = false,
     this.hideTabs = false,
     this.showThemeToggle = false,
-
-    // ADD THIS
     this.floatingActionButton,
   });
 
   @override
+  State<PhoneShell> createState() => _PhoneShellState();
+}
+
+class _PhoneShellState extends State<PhoneShell> {
+  String _language = 'English';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadLanguage();
+  }
+
+  Future<void> _loadLanguage() async {
+    final prefs = await SharedPreferences.getInstance();
+    final language = prefs.getString('language') ?? 'English';
+    if (mounted) {
+      setState(() {
+        _language = language;
+      });
+    }
+  }
+
+  String t(String en, String sw) => _language == 'Kiswahili' ? sw : en;
+
+  @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final activeBg = bgImage != null 
-        ? (isDark && bgImageDark != null ? bgImageDark! : bgImage!)
+    final activeBg = widget.bgImage != null
+        ? (isDark && widget.bgImageDark != null ? widget.bgImageDark! : widget.bgImage!)
         : (isDark ? 'assets/backgrounds/bg-home-dark.jpg' : 'assets/backgrounds/bg-home.jpg');
     final scheme = Theme.of(context).colorScheme;
     final connectivity = ConnectivityService();
 
     return Scaffold(
-      // ADD THIS
-      floatingActionButton: floatingActionButton,
-
+      floatingActionButton: widget.floatingActionButton,
       body: Stack(
         children: [
           Positioned.fill(
@@ -50,10 +70,7 @@ class PhoneShell extends StatelessWidget {
               child: Image.asset(activeBg, fit: BoxFit.cover),
             ),
           ),
-          
-          // Dynamic Background Overlay
           const Positioned.fill(child: DynamicBackgroundOverlay()),
-
           Positioned.fill(
             child: DecoratedBox(
               decoration: BoxDecoration(
@@ -69,11 +86,9 @@ class PhoneShell extends StatelessWidget {
               ),
             ),
           ),
-
           SafeArea(
             child: Column(
               children: [
-                // Connectivity Banner
                 ListenableBuilder(
                   listenable: connectivity,
                   builder: (context, _) {
@@ -82,60 +97,52 @@ class PhoneShell extends StatelessWidget {
                       width: double.infinity,
                       color: Colors.redAccent.withOpacity(0.9),
                       padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 16),
-                      child: const Row(
+                      child: Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Icon(Icons.wifi_off, color: Colors.white, size: 14),
-                          SizedBox(width: 8),
+                          const Icon(Icons.wifi_off, color: Colors.white, size: 14),
+                          const SizedBox(width: 8),
                           Text(
-                            'Offline Mode - Progress saved locally',
-                            style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
+                            t('Offline Mode - Progress saved locally', 'Hali ya Nje ya Mtandao - Maendeleo yamehifadhiwa ndani'),
+                            style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
                           ),
                         ],
                       ),
                     );
                   },
                 ),
-                if (title != null || showBack || showThemeToggle)
+                if (widget.title != null || widget.showBack || widget.showThemeToggle)
                   Padding(
                     padding: const EdgeInsets.fromLTRB(20, 12, 20, 4),
                     child: Row(
                       children: [
-                        if (showBack)
+                        if (widget.showBack)
                           _circleBtn(
                             context,
                             Icons.arrow_back,
                             () => Navigator.of(context).maybePop(),
                           ),
-
-                        if (showBack) const SizedBox(width: 12),
-
-                        if (title != null)
+                        if (widget.showBack) const SizedBox(width: 12),
+                        if (widget.title != null)
                           Expanded(
                             child: Text(
-                              title!,
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .headlineMedium,
+                              widget.title!,
+                              style: Theme.of(context).textTheme.headlineMedium,
                             ),
                           ),
-
-                        if (showThemeToggle)
+                        if (widget.showThemeToggle)
                           _circleBtn(
                             context,
-                            isDark
-                                ? Icons.light_mode
-                                : Icons.dark_mode,
+                            isDark ? Icons.light_mode : Icons.dark_mode,
                             () => ThemeScope.of(context).toggle(),
                           ),
                       ],
                     ),
                   ),
-
                 Expanded(
                   child: SingleChildScrollView(
                     padding: const EdgeInsets.only(bottom: 24),
-                    child: child,
+                    child: widget.child,
                   ),
                 ),
               ],
@@ -143,17 +150,11 @@ class PhoneShell extends StatelessWidget {
           ),
         ],
       ),
-
-      bottomNavigationBar:
-          hideTabs ? null : _buildTabs(context),
+      bottomNavigationBar: widget.hideTabs ? null : _buildTabs(context),
     );
   }
 
-  Widget _circleBtn(
-    BuildContext c,
-    IconData icon,
-    VoidCallback onTap,
-  ) {
+  Widget _circleBtn(BuildContext c, IconData icon, VoidCallback onTap) {
     return Material(
       color: Theme.of(c).colorScheme.surface.withOpacity(0.8),
       shape: const CircleBorder(),
@@ -170,43 +171,30 @@ class PhoneShell extends StatelessWidget {
   }
 
   Widget _buildTabs(BuildContext context) {
-    final route =
-        ModalRoute.of(context)?.settings.name ?? '/';
-
-    final tabs = const [
-      _Tab('/', Icons.home_outlined, 'Home'),
-      _Tab('/market', Icons.bar_chart, 'Market'),
-      _Tab('/reminders',
-          Icons.notifications_outlined, 'Tasks'),
-      _Tab('/community',
-          Icons.chat_bubble_outline, 'Talk'),
-      _Tab('/profile',
-          Icons.person_outline, 'Me'),
+    final route = ModalRoute.of(context)?.settings.name ?? '/';
+    final tabs = [
+      _Tab('/', Icons.home_outlined, t('Home', 'Nyumbani')),
+      _Tab('/market', Icons.bar_chart, t('Market', 'Soko')),
+      _Tab('/reminders', Icons.notifications_outlined, t('Tasks', 'Kazi')),
+      _Tab('/community', Icons.chat_bubble_outline, t('Talk', 'Ongea')),
+      _Tab('/profile', Icons.person_outline, t('Me', 'Mimi')),
     ];
 
     return Container(
       decoration: BoxDecoration(
-        color: Theme.of(context)
-            .colorScheme
-            .surface
-            .withOpacity(0.95),
-        border: const Border(
-          top: BorderSide(color: Colors.black12),
-        ),
+        color: Theme.of(context).colorScheme.surface.withOpacity(0.95),
+        border: const Border(top: BorderSide(color: Colors.black12)),
       ),
       padding: const EdgeInsets.symmetric(vertical: 8),
       child: Row(
-        mainAxisAlignment:
-            MainAxisAlignment.spaceAround,
+        mainAxisAlignment: MainAxisAlignment.spaceAround,
         children: tabs.map((t) {
           final active = route == t.route;
-
           return Expanded(
             child: InkWell(
               onTap: () {
                 if (!active) {
-                  Navigator.of(context)
-                      .pushReplacementNamed(t.route);
+                  Navigator.of(context).pushReplacementNamed(t.route);
                 }
               },
               child: Column(
@@ -216,32 +204,17 @@ class PhoneShell extends StatelessWidget {
                     height: 36,
                     width: 48,
                     decoration: BoxDecoration(
-                      color: active
-                          ? Theme.of(context)
-                              .colorScheme
-                              .primary
-                          : Colors.transparent,
-                      borderRadius:
-                          BorderRadius.circular(20),
+                      color: active ? Theme.of(context).colorScheme.primary : Colors.transparent,
+                      borderRadius: BorderRadius.circular(20),
                     ),
                     child: Icon(
                       t.icon,
                       size: 18,
-                      color: active
-                          ? Theme.of(context)
-                              .colorScheme
-                              .onPrimary
-                          : Theme.of(context).hintColor,
+                      color: active ? Theme.of(context).colorScheme.onPrimary : Theme.of(context).hintColor,
                     ),
                   ),
-
                   const SizedBox(height: 2),
-
-                  Text(
-                    t.label,
-                    style:
-                        const TextStyle(fontSize: 10),
-                  ),
+                  Text(t.label, style: const TextStyle(fontSize: 10)),
                 ],
               ),
             ),

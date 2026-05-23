@@ -4,10 +4,6 @@ import '../widgets/agri_search_bar.dart';
 import '../widgets/profile_avatar.dart';
 import '../theme.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:http/http.dart' as http;
-import 'package:geolocator/geolocator.dart';
-import 'dart:convert';
-import 'api_config.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -22,76 +18,13 @@ class _HomeScreenState extends State<HomeScreen> {
   String _profileImageUrl = '';
   bool _offlineMode = false;
   String _language = 'English';
-  
-  // Weather state
-  String _weatherTemp = '--';
-  String _weatherDesc = 'Loading...';
-  String _weatherLocation = 'Your Farm';
-  IconData _weatherIcon = Icons.wb_sunny;
 
   @override
   void initState() {
     super.initState();
     _loadUserName();
-    _fetchHomeWeather();
   }
 
-  Future<void> _fetchHomeWeather() async {
-    try {
-      Position? position;
-      try {
-        LocationPermission permission = await Geolocator.checkPermission();
-        if (permission == LocationPermission.whileInUse || permission == LocationPermission.always) {
-          position = await Geolocator.getCurrentPosition();
-        }
-      } catch (e) {
-        debugPrint('Home weather location error: $e');
-      }
-
-      final apiKey = ApiConfig.weatherApiKey;
-      final prefs = await SharedPreferences.getInstance();
-      final savedLocation = prefs.getString('farmLocation') ?? 'Tanzania';
-      final farmLat = prefs.getDouble('farmLat');
-      final farmLon = prefs.getDouble('farmLon');
-      
-      String url;
-      if (position != null) {
-        url = 'https://api.openweathermap.org/data/2.5/weather?lat=${position.latitude}&lon=${position.longitude}&appid=$apiKey&units=metric';
-      } else if (farmLat != null && farmLon != null) {
-        url = 'https://api.openweathermap.org/data/2.5/weather?lat=$farmLat&lon=$farmLon&appid=$apiKey&units=metric';
-      } else {
-        url = 'https://api.openweathermap.org/data/2.5/weather?q=$savedLocation&appid=$apiKey&units=metric';
-      }
-
-      final res = await http.get(Uri.parse(url));
-      if (res.statusCode == 200) {
-        final data = json.decode(res.body);
-        if (!mounted) return;
-        setState(() {
-          _weatherTemp = '${data['main']['temp'].round()}°';
-          _weatherDesc = data['weather'][0]['description'].toString().toUpperCase();
-          // Use user's input location if available, else use API name
-          _weatherLocation = (farmLat != null && farmLon != null) 
-              ? data['name'].toString().toUpperCase() 
-              : (savedLocation.isNotEmpty ? savedLocation.toUpperCase() : data['name'].toString().toUpperCase());
-          _weatherIcon = _getWeatherIcon(data['weather'][0]['main']);
-        });
-      }
-    } catch (e) {
-      debugPrint('Home weather fetch error: $e');
-    }
-  }
-
-  IconData _getWeatherIcon(String mainCondition) {
-    switch (mainCondition.toLowerCase()) {
-      case 'clouds': return Icons.cloud;
-      case 'rain': return Icons.umbrella;
-      case 'clear': return Icons.wb_sunny;
-      case 'snow': return Icons.ac_unit;
-      case 'thunderstorm': return Icons.flash_on;
-      default: return Icons.wb_cloudy;
-    }
-  }
 
   Future<void> _loadUserName() async {
     final prefs = await SharedPreferences.getInstance();
@@ -176,7 +109,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('Karibu 👋',
+                      Text('👋',
                           style: TextStyle(fontSize: 12, color: Theme.of(context).hintColor)),
                       Text(_userName,
                           style: Theme.of(context).textTheme.displayLarge),
@@ -195,52 +128,6 @@ class _HomeScreenState extends State<HomeScreen> {
             AgriSearchBar(
               hintText: 'Search for features or tools...',
               onChanged: (val) => setState(() => _searchQuery = val),
-            ),
-            const SizedBox(height: 4),
-            // Weather hero card
-            Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [leaf, Color(0xFF1F5A38)],
-                  begin: Alignment.topLeft, end: Alignment.bottomRight,
-                ),
-                borderRadius: BorderRadius.circular(28),
-                boxShadow: [
-                  BoxShadow(color: leaf.withOpacity(0.3), blurRadius: 24, offset: const Offset(0, 10)),
-                ],
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(_weatherLocation,
-                              style: const TextStyle(color: Colors.white70, fontSize: 10, letterSpacing: 1.5)),
-                          const SizedBox(height: 4),
-                          Text(_weatherTemp,
-                              style: const TextStyle(color: Colors.white, fontSize: 40, fontWeight: FontWeight.w600)),
-                          Text(_weatherDesc,
-                              style: const TextStyle(color: Colors.white70, fontSize: 12)),
-                        ],
-                      ),
-                      Icon(_weatherIcon, color: harvest, size: 56),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  Row(
-                    children: [
-                      _stat('Soil', 'Good', Icons.eco),
-                      _stat('Humidity', '62%', Icons.water_drop),
-                      _stat('Offline', 'Synced', Icons.wifi),
-                    ],
-                  ),
-                ],
-              ),
             ),
             const SizedBox(height: 24),
             Row(
@@ -280,25 +167,6 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
     );
   }
-
-  Widget _stat(String l, String v, IconData i) => Expanded(
-        child: Container(
-          margin: const EdgeInsets.symmetric(horizontal: 2),
-          padding: const EdgeInsets.symmetric(vertical: 8),
-          decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.12),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Column(
-            children: [
-              Icon(i, color: Colors.white70, size: 16),
-              const SizedBox(height: 4),
-              Text(l, style: const TextStyle(color: Colors.white70, fontSize: 10)),
-              Text(v, style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600)),
-            ],
-          ),
-        ),
-      );
 }
 
 class _Tile {

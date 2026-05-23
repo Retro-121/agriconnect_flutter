@@ -27,7 +27,6 @@ class _AiChatPageState extends State<AiChatPage> {
 
   XFile? _selectedImage;
   final ImagePicker _picker = ImagePicker();
-  final String _geminiApiKey = ApiConfig.geminiKey;
 
   // Voice stuff
   final stt.SpeechToText _speech = stt.SpeechToText();
@@ -78,12 +77,20 @@ class _AiChatPageState extends State<AiChatPage> {
       bool available = await _speech.initialize();
       if (available) {
         setState(() => _isListening = true);
-        _speech.listen(onResult: (val) => setState(() {
-          _controller.text = val.recognizedWords;
+        _speech.listen(onResult: (val) {
+          setState(() => _controller.text = val.recognizedWords);
           if (val.finalResult) {
-            _isListening = false;
+            setState(() => _isListening = false);
+            _speech.stop();
+            if (val.recognizedWords.trim().isNotEmpty) {
+              Future.delayed(const Duration(milliseconds: 300), () {
+                if (mounted && !_isLoading) {
+                  _sendMessage();
+                }
+              });
+            }
           }
-        }));
+        });
       }
     } else {
       setState(() => _isListening = false);
@@ -102,6 +109,97 @@ class _AiChatPageState extends State<AiChatPage> {
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Suggestion sent to AgriConnect developers! Thank you.')),
     );
+  }
+
+  String? _executeAppCommand(String text) {
+    final normalized = text.toLowerCase();
+
+    if (normalized.contains('logout') || normalized.contains('log out') || normalized.contains('sign out')) {
+      _performLogout();
+      return _language == 'Kiswahili'
+          ? 'Nimetoka kwenye akaunti yako na kurudisha kwenye skrini ya kuingia.'
+          : 'Logged you out and sent you back to the login screen.';
+    }
+
+    if (normalized.contains('clear chat') || normalized.contains('reset chat')) {
+      _clearChat();
+      return _language == 'Kiswahili'
+          ? 'Mazungumzo yamefutwa. Tunaweza kuanza tena.'
+          : 'Chat cleared. We can start fresh.';
+    }
+
+    if (normalized.contains('suggest') || normalized.contains('feedback')) {
+      _sendSuggestion();
+      return _language == 'Kiswahili'
+          ? 'Pendekezo lako limepokelewa. Asante kwa maoni yako.'
+          : 'Your suggestion has been noted. Thanks for the feedback.';
+    }
+
+    final route = _routeForAppCommand(normalized);
+    if (route != null) {
+      _navigateToRoute(route);
+      return _language == 'Kiswahili'
+          ? 'Nimefungua skrini husika kwa ajili yako.'
+          : 'I opened the requested screen for you.';
+    }
+
+    return null;
+  }
+
+  String? _routeForAppCommand(String normalized) {
+    if (normalized.contains('service provider') || normalized.contains('provider home') || normalized.contains('provider page')) {
+      return '/service-provider-home';
+    }
+    if (normalized.contains('reminder') || normalized.contains('task')) {
+      return '/reminders';
+    }
+    if (normalized.contains('weather')) {
+      return '/weather';
+    }
+    if (normalized.contains('livestock') || normalized.contains('cattle')) {
+      return '/livestock';
+    }
+    if (normalized.contains('community')) {
+      return '/community';
+    }
+    if (normalized.contains('market')) {
+      return '/market';
+    }
+    if (normalized.contains('supplier') || normalized.contains('suppliers')) {
+      return '/suppliers';
+    }
+    if (normalized.contains('vet') || normalized.contains('vets')) {
+      return '/vets';
+    }
+    if (normalized.contains('profile') || normalized.contains('account')) {
+      return '/profile';
+    }
+    if (normalized.contains('help') || normalized.contains('support')) {
+      return '/help';
+    }
+    if (normalized.contains('home') || normalized.contains('dashboard')) {
+      return '/';
+    }
+    return null;
+  }
+
+  void _navigateToRoute(String route) {
+    if (!mounted) return;
+    Navigator.pushNamed(context, route);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(_language == 'Kiswahili'
+            ? 'Skrini imefunguliwa kwa Nakala ya AI.'
+            : 'Screen opened by AI command.'),
+      ),
+    );
+  }
+
+  Future<void> _performLogout() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('isLoggedIn', false);
+    if (!mounted) return;
+    Navigator.pushNamedAndRemoveUntil(context, '/login', (route) => false);
   }
 
   @override
@@ -168,7 +266,7 @@ YOUR ROLE:
 
 5. Respond in ${_language == 'Kiswahili' ? 'Kiswahili' : 'English'} unless the farmer uses another language.
 
-6. Keep answers practical, short, actionable, and farmer-friendly.
+6. Keep answers practical, short, actionable, and abit of humour and farmer-friendly.
 
 7. Analyze uploaded images when provided. You can:
    - Detect visible livestock diseases or injuries
@@ -261,7 +359,7 @@ YOUR ROLE:
     final parts = fullText.split(' ');
     String current = '';
     for (int i = 0; i < parts.length; i++) {
-      current += parts[i] + ' ';
+      current = '$current${parts[i]} ';
       if (!mounted) return;
       setState(() => _messages[index]['text'] = current.trim());
       _scrollToBottom();
@@ -272,6 +370,11 @@ YOUR ROLE:
   // ── Groq call ────────────────────────────────────────────────
   Future<void> _callGroq(String prompt, int botIndex) async {
     try {
+      // Validate API key before making request
+      if (!ApiConfig.hasValidGroqKey) {
+        throw Exception('Missing GROQ_KEY. Please configure your API key.');
+      }
+
       final groqUrl = Uri.parse("https://api.groq.com/openai/v1/chat/completions");
       
       List<Map<String, dynamic>> messages = [
@@ -338,10 +441,14 @@ YOUR ROLE:
 
   Future<void> _callGemini(String prompt, String base64Image, int botIndex) async {
     try {
-      final url = Uri.parse('https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=$_geminiApiKey');
-      
+      // Validate API key before making request
+      if (!ApiConfig.hasValidGeminiKey) {
+        throw Exception('Missing GEMINI_KEY. Please configure your API key.');
+      }
+
+      // Use Gemini API with key in headers instead of URL parameters
       final response = await http.post(
-        url,
+        Uri.parse('https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${ApiConfig.geminiKey}'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
           "system_instruction": {
@@ -452,9 +559,13 @@ YOUR ROLE:
 
   Future<void> _callGeminiImageCreation(String prompt, int botIndex) async {
     try {
-      final url = Uri.parse('https://generativelanguage.googleapis.com/v1beta/images:generate?key=$_geminiApiKey');
+      // Validate API key before making request
+      if (!ApiConfig.hasValidGeminiKey) {
+        throw Exception('Missing GEMINI_KEY. Please configure your API key.');
+      }
+
       final response = await http.post(
-        url,
+        Uri.parse('https://generativelanguage.googleapis.com/v1beta/images:generate?key=${ApiConfig.geminiKey}'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
           'model': 'gemini-1.5-image',
@@ -509,6 +620,18 @@ YOUR ROLE:
     if (_selectedImage != null) {
       final bytes = await _selectedImage!.readAsBytes();
       base64Image = base64Encode(bytes);
+    }
+
+    if (base64Image == null) {
+      final commandResponse = _executeAppCommand(text);
+      if (commandResponse != null) {
+        setState(() {
+          _messages.add({'role': 'user', 'text': text});
+          _messages.add({'role': 'bot', 'text': commandResponse});
+        });
+        _saveChatHistory();
+        return;
+      }
     }
 
     setState(() {
@@ -582,13 +705,24 @@ YOUR ROLE:
     if (msg['isError'] == true) {
       return GestureDetector(
         onTap: () => _retryMessage(index),
-        child: _bubble(msg['text'], isUser: false, isError: true, imageBytes: msg['imageBytes']),
+        child: _bubble(
+          msg['text'],
+          isUser: false,
+          isError: true,
+          imageBytes: msg['imageBytes'],
+          imageUrl: msg['imageUrl'],
+        ),
       );
     }
-    return _bubble(msg['text'], isUser: msg['role'] == 'user', imageBytes: msg['imageBytes']);
+    return _bubble(
+      msg['text'],
+      isUser: msg['role'] == 'user',
+      imageBytes: msg['imageBytes'],
+      imageUrl: msg['imageUrl'],
+    );
   }
 
-  Widget _bubble(String text, {required bool isUser, bool isError = false, String? imageBytes}) {
+  Widget _bubble(String text, {required bool isUser, bool isError = false, String? imageBytes, String? imageUrl}) {
     String? generatedImageUrl;
     String displayText = text;
     
@@ -601,8 +735,6 @@ YOUR ROLE:
         displayText = text.replaceFirst(match.group(0)!, '').trim();
       }
     }
-
-    final imageUrl = msg['imageUrl'] as String?;
 
     return Align(
       alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
@@ -889,6 +1021,7 @@ YOUR ROLE:
                       IconButton(
                         icon: Icon(_isListening ? Icons.mic : Icons.mic_none, 
                           color: _isListening ? Colors.red : leaf),
+                        tooltip: _language == 'Kiswahili' ? 'Amri kwa sauti' : 'Voice command',
                         onPressed: _listen,
                       ),
                       Expanded(
@@ -898,8 +1031,8 @@ YOUR ROLE:
                           cursorColor: leaf,
                           decoration: InputDecoration(
                             hintText: _language == 'Kiswahili'
-                                ? 'Andika swali lako...'
-                                : 'Ask your farming question...',
+                                ? 'Andika swali lako au amri ya sauti...'
+                                : 'Ask your farming question or command...',
                             hintStyle: const TextStyle(color: Colors.white38),
                             border: InputBorder.none,
                           ),

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../widgets/phone_shell.dart';
 import '../widgets/agri_search_bar.dart';
@@ -13,6 +14,7 @@ class SuppliersScreen extends StatefulWidget {
 
 class _SuppliersScreenState extends State<SuppliersScreen> {
   String _searchQuery = '';
+  String _language = 'English';
 
   final List<Map<String, String>> _suppliers = const [
     {
@@ -249,6 +251,21 @@ class _SuppliersScreenState extends State<SuppliersScreen> {
     }
   ];
 
+  @override
+  void initState() {
+    super.initState();
+    _loadLanguage();
+  }
+
+  Future<void> _loadLanguage() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      _language = prefs.getString('language') ?? 'English';
+    });
+  }
+
+  String t(String en, String sw) => _language == 'Kiswahili' ? sw : en;
+
   void _callSupplier(String phone) async {
     final Uri uri = Uri.parse("tel:$phone");
     if (await canLaunchUrl(uri)) {
@@ -267,7 +284,7 @@ class _SuppliersScreenState extends State<SuppliersScreen> {
     }).toList();
 
     return PhoneShell(
-      title: 'Suppliers',
+      title: t('Suppliers', 'Wauzaji'),
       showBack: true,
       bgImage: 'assets/backgrounds/bg-suppliers-dark.jpg',
       bgImageDark: 'assets/backgrounds/bg-suppliers-dark.jpg',
@@ -277,7 +294,7 @@ class _SuppliersScreenState extends State<SuppliersScreen> {
           children: [
             const SizedBox(height: 10),
             AgriSearchBar(
-              hintText: 'Search suppliers by name, region or product...',
+              hintText: t('Search suppliers by name, region or product...', 'Tafuta wauzaji kwa jina, mkoa au bidhaa...'),
               onChanged: (val) => setState(() => _searchQuery = val),
             ),
             ListView.builder(

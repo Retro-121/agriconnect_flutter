@@ -13,16 +13,64 @@ class MarketScreen extends StatefulWidget {
 class _MarketScreenState extends State<MarketScreen> {
   String _searchQuery = '';
 
-  final List<Map<String, dynamic>> _items = [
-    {'name': 'Maize', 'unit': '1 kg', 'price': '55 KES', 'change': '+3%', 'trend': 'up'},
-    {'name': 'Beans', 'unit': '1 kg', 'price': '120 KES', 'change': '-1%', 'trend': 'down'},
-    {'name': 'Milk', 'unit': '1 L', 'price': '62 KES', 'change': '+2%', 'trend': 'up'},
-    {'name': 'Tomatoes', 'unit': '1 crate', 'price': '2,400 KES', 'change': '+8%', 'trend': 'up'},
-    {'name': 'Potatoes', 'unit': '1 sack', 'price': '3,100 KES', 'change': '-2%', 'trend': 'down'},
-    {'name': 'Wheat', 'unit': '1 kg', 'price': '45 KES', 'change': '+1%', 'trend': 'up'},
-    {'name': 'Sorghum', 'unit': '1 kg', 'price': '70 KES', 'change': '0%', 'trend': 'neutral'},
-    {'name': 'Rice', 'unit': '1 kg', 'price': '150 KES', 'change': '+5%', 'trend': 'up'},
-  ];
+ final List<Map<String, dynamic>> _items = [
+  {
+    'name': 'Maize',
+    'unit': '1 kg',
+    'price': '900 TSH',
+    'change': '+12.5%',
+    'trend': 'up'
+  },
+  {
+    'name': 'Beans',
+    'unit': '1 kg',
+    'price': '2,000 TSH',
+    'change': '-4.8%',
+    'trend': 'down'
+  },
+  {
+    'name': 'Milk',
+    'unit': '1 L',
+    'price': '1,800 TSH',
+    'change': '+2%',
+    'trend': 'up'
+  },
+  {
+    'name': 'Tomatoes',
+    'unit': '1 crate',
+    'price': '85,000 TSH',
+    'change': '+8%',
+    'trend': 'up'
+  },
+  {
+    'name': 'Potatoes',
+    'unit': '1 sack',
+    'price': '65,000 TSH',
+    'change': '0%',
+    'trend': 'neutral'
+  },
+  {
+    'name': 'Wheat',
+    'unit': '1 kg',
+    'price': '1,400 TSH',
+    'change': '+1%',
+    'trend': 'up'
+  },
+  {
+    'name': 'Sorghum',
+    'unit': '1 kg',
+    'price': '1,500 TSH',
+    'change': '0%',
+    'trend': 'neutral'
+  },
+  {
+    'name': 'Rice',
+    'unit': '1 kg',
+    'price': '2,500 TSH',
+    'change': '-3.8%',
+    'trend': 'down'
+  },
+];
 
   @override
   Widget build(BuildContext context) {
